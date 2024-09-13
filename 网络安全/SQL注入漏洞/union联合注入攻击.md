@@ -64,7 +64,7 @@ if( isset( $_REQUEST[ 'Submit' ] ) ) {
 
 ?>
 ```
-使用\$_REQUEST$直接接收$id$参数，没有进行任何过滤，同时可以接收cookie get post这些传递方法。接下来需要判断是字符型注入还是整型注入，输入单引号$'$ 会出现报错语句You have an error in your SQL syntax; 可以知道属于字符型注入，在进行注入检测时要注意单引号闭合。
+使用\$_REQUEST直接接收 $id$ 参数，没有进行任何过滤，同时可以接收cookie get post这些传递方法。接下来需要判断是字符型注入还是整型注入，输入单引号 $'$ 会出现报错语句You have an error in your SQL syntax; 可以知道属于字符型注入，在进行注入检测时要注意单引号闭合。
 
 ## 0x04 union select联合注入流程
 首先，输入 1'and '1'='1 页面返回用户信息 1'and '1'='2 页面返回不一样的信息。基本可以确定存在 SQL 注入漏洞。  
